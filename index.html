@@ -1,0 +1,156 @@
+
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chromebook Input Lab</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#0b0f17;color:#e8edf5;font-family:Arial,sans-serif}
+header{padding:18px;background:#121925;border-bottom:1px solid #263244}
+h1{font-size:20px;margin:0}
+small{color:#94a3b8}
+main{padding:14px;max-width:850px;margin:auto}
+.card{background:#151d29;border:1px solid #273448;border-radius:14px;padding:15px;margin-bottom:13px}
+button{background:#26364b;color:white;border:0;border-radius:9px;padding:12px;cursor:pointer}
+button:active{background:#3b82f6}
+.row{display:flex;gap:8px;flex-wrap:wrap}
+#pad{height:240px;border:2px dashed #41516b;border-radius:12px;
+display:flex;align-items:center;justify-content:center;text-align:center;
+background:#101722;touch-action:none;user-select:none}
+#pad.locked{border-color:#22c55e;background:#13251e}
+.keys{display:grid;grid-template-columns:repeat(3,60px);gap:6px;justify-content:center}
+.key{padding:15px 0;background:#26364b;border-radius:9px;text-align:center}
+.key.active{background:#16a34a}
+pre{white-space:pre-wrap;word-break:break-word;color:#9fb4cc}
+input{background:#0c121c;color:white;border:1px solid #34445b;padding:10px;border-radius:8px}
+</style>
+</head>
+<body>
+<header>
+<h1>Chromebook Input Lab</h1>
+<small>Lightweight keyboard & mouse tester</small>
+</header>
+
+<main>
+<div class="card">
+<h3>Mouse capture test</h3>
+<div id="pad">Click here to capture mouse<br>Press ESC to release</div>
+<p id="mouse">Mouse: chưa khóa</p>
+<p id="pos">X: 0 | Y: 0</p>
+</div>
+
+<div class="card">
+<h3>Keyboard tester</h3>
+<div class="keys">
+<div></div><div class="key" data-key="w">W</div><div></div>
+<div class="key" data-key="a">A</div>
+<div class="key" data-key="s">S</div>
+<div class="key" data-key="d">D</div>
+</div>
+<p id="keyinfo">Nhấn W A S D hoặc phím bất kỳ</p>
+</div>
+
+<div class="card">
+<h3>Key bindings</h3>
+<div class="row">
+<button data-bind="forward">Tiến: W</button>
+<button data-bind="left">Trái: A</button>
+<button data-bind="back">Lùi: S</button>
+<button data-bind="right">Phải: D</button>
+<button data-bind="jump">Nhảy: Space</button>
+<button data-bind="fire">Bắn: Mouse 1</button>
+</div>
+<p><small>Nhấn nút để đổi phím. Cấu hình lưu trên trình duyệt.</small></p>
+<button id="reset">Reset mặc định</button>
+</div>
+
+<div class="card">
+<h3>Input log</h3>
+<pre id="log">Ready.</pre>
+<button id="clear">Xóa log</button>
+</div>
+</main>
+
+<script>
+const pad=document.getElementById('pad');
+const mouse=document.getElementById('mouse');
+const pos=document.getElementById('pos');
+const keyinfo=document.getElementById('keyinfo');
+const logbox=document.getElementById('log');
+let log=[];
+
+function write(s){
+ log.unshift(s);
+ log=log.slice(0,12);
+ logbox.textContent=log.join('\n');
+}
+
+pad.onclick=()=>{
+ if(document.pointerLockElement!==pad){
+  pad.requestPointerLock?.();
+ }
+};
+
+document.addEventListener('pointerlockchange',()=>{
+ const locked=document.pointerLockElement===pad;
+ pad.classList.toggle('locked',locked);
+ mouse.textContent=locked?'Mouse: captured (ESC để thoát)':'Mouse: chưa khóa';
+ write(locked?'Pointer captured':'Pointer released');
+});
+
+document.addEventListener('mousemove',e=>{
+ if(document.pointerLockElement===pad){
+  pos.textContent=`ΔX: ${e.movementX} | ΔY: ${e.movementY}`;
+ }
+});
+
+const defaults={forward:'w',left:'a',back:'s',right:'d',jump:'Space',fire:'Mouse 1'};
+let binds=JSON.parse(localStorage.getItem('inputlab.binds')||'null')||{...defaults};
+
+function renderBinds(){
+ document.querySelectorAll('[data-bind]').forEach(b=>{
+  let name=b.dataset.bind;
+  b.textContent=name+': '+binds[name];
+ });
+}
+renderBinds();
+
+document.querySelectorAll('[data-bind]').forEach(btn=>{
+ btn.onclick=()=>{
+  const name=btn.dataset.bind;
+  btn.textContent='Nhấn phím mới...';
+  const handler=e=>{
+   e.preventDefault();
+   binds[name]=e.code==='Space'?'Space':e.key.toLowerCase();
+   localStorage.setItem('inputlab.binds',JSON.stringify(binds));
+   renderBinds();
+   window.removeEventListener('keydown',handler);
+  };
+  window.addEventListener('keydown',handler);
+ };
+});
+
+document.addEventListener('keydown',e=>{
+ if(e.repeat)return;
+ const k=e.key.toLowerCase();
+ const el=document.querySelector(`[data-key="${k}"]`);
+ if(el)el.classList.add('active');
+ keyinfo.textContent=`Key: ${e.key} | Code: ${e.code}`;
+ write(`Key down: ${e.code}`);
+});
+document.addEventListener('keyup',e=>{
+ const el=document.querySelector(`[data-key="${e.key.toLowerCase()}"]`);
+ if(el)el.classList.remove('active');
+});
+document.addEventListener('mousedown',e=>write('Mouse button: '+e.button));
+document.getElementById('clear').onclick=()=>{log=[];logbox.textContent='Ready.'};
+document.getElementById('reset').onclick=()=>{
+ binds={...defaults};
+ localStorage.setItem('inputlab.binds',JSON.stringify(binds));
+ renderBinds();
+};
+</script>
+</body>
+</html>
